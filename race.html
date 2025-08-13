@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Top-Down Racing - Circuiti Lunghi</title>
+<style>
+  body { margin:0; overflow:hidden; background:#222; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let keys = {};
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// Parametri auto
+let car = {
+  x: 0,
+  y: 0,
+  angle: 0,
+  speed: 0,
+  width: 20,
+  length: 40,
+  maxSpeed: 5,
+  accel: 0.2,
+  friction: 0.05,
+  turnSpeed: 0.04
+};
+
+// Larghezza pista
+const trackWidth = 120;
+
+// Circuiti definiti con segmenti più lunghi e belli
+const tracks = [
+  [ // Circuito 1
+    {type:'straight', length:400},
+    {type:'curve', length:200, radius:150, direction:1},
+    {type:'straight', length:300},
+    {type:'curve', length:200, radius:150, direction:-1},
+    {type:'straight', length:500}
+  ],
+  [ // Circuito 2
+    {type:'straight', length:600},
+    {type:'curve', length:300, radius:200, direction:-1},
+    {type:'straight', length:400},
+    {type:'curve', length:250, radius:180, direction:1},
+    {type:'straight', length:300}
+  ],
+  [ // Circuito 3
+    {type:'curve', length:250, radius:120, direction:1},
+    {type:'straight', length:500},
+    {type:'curve', length:200, radius:100, direction:-1},
+    {type:'straight', length:400},
+    {type:'curve', length:300, radius:180, direction:1}
+  ],
+  [ // Circuito 4
+    {type:'straight', length:500},
+    {type:'curve', length:200, radius:120, direction:-1},
+    {type:'straight', length:300},
+    {type:'curve', length:250, radius:150, direction:1},
+    {type:'straight', length:400}
+  ],
+  [ // Circuito 5
+    {type:'curve', length:300, radius:180, direction:1},
+    {type:'straight', length:600},
+    {type:'curve', length:250, radius:150, direction:-1},
+    {type:'straight', length:500},
+    {type:'curve', length:200, radius:120, direction:1}
+  ]
+];
+
+let currentTrack = 0;
+
+// Genera punti del circuito
+function generateTrackPoints(track) {
+  let points = [];
+  let x = canvas.width/2, y = canvas.height/2, angle = 0;
+  for(const seg of track){
+    if(seg.type==='straight'){
+      for(let i=0;i<seg.length;i+=5){
+        x += Math.cos(angle)*5;
+        y += Math.sin(angle)*5;
+        points.push({x,y});
+      }
+    } else {
+      const dir = seg.direction;
+      const steps = Math.floor(seg.length/5);
+      for(let i=0;i<steps;i++){
+        const theta = 5/seg.radius;
+        angle += theta*dir;
+        x += Math.cos(angle)*5;
+        y += Math.sin(angle)*5;
+        points.push({x,y});
+      }
+    }
+  }
+  return points;
+}
+
+let trackPoints = generateTrackPoints(tracks[currentTrack]);
+
+// Controllo auto
+function updateCar() {
+  if(keys['w']) car.speed += car.accel;
+  else if(keys['s']) car.speed -= car.accel;
+  else car.speed *= 1 - car.friction;
+
+  if(car.speed > car.maxSpeed) car.speed = car.maxSpeed;
+  if(car.speed < -car.maxSpeed/2) car.speed = -car.maxSpeed/2;
+
+  if(keys['a']) car.angle -= car.turnSpeed * (car.speed/2);
+  if(keys['d']) car.angle += car.turnSpeed * (car.speed/2);
+
+  car.x += Math.cos(car.angle)*car.speed;
+  car.y += Math.sin(car.angle)*car.speed;
+}
+
+// Collisione semplice
+function checkCollision() {
+  let minDist = Infinity;
+  for(const p of trackPoints){
+    const dx = car.x - p.x;
+    const dy = car.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist < minDist) minDist = dist;
+  }
+  if(minDist > trackWidth/2){
+    car.speed = -car.speed*0.5; // rimbalzo
+  }
+}
+
+// Render circuito e auto
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Telecamera centrata sull'auto
+  ctx.save();
+  ctx.translate(canvas.width/2 - car.x, canvas.height/2 - car.y);
+
+  // Pista
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = trackWidth;
+  ctx.beginPath();
+  for(let i=0;i<trackPoints.length;i++){
+    const p = trackPoints[i];
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  }
+  ctx.stroke();
+
+  // Auto
+  ctx.fillStyle = 'red';
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle);
+  ctx.fillRect(-car.length/2, -car.width/2, car.length, car.width);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// Game loop
+function loop() {
+  updateCar();
+  checkCollision();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
