@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Top-Down Racing Game – Circuito Geometrico</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #222; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// Setup
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Definizione dei circuiti come array di segmenti
+// Ogni segmento: { type: 'straight'|'curve', length: number, radius?: number, direction?: 1|-1 }
+const tracks = [
+  [
+    {type: 'straight', length: 400},
+    {type: 'curve', length: 100, radius: 100, direction: 1},
+    {type: 'straight', length: 400},
+    {type: 'curve', length: 100, radius: 100, direction: -1}
+  ],
+  // Aggiungi qui altri 4 circuiti
+  [
+    {type: 'straight', length: 300},
+    {type: 'curve', length: 200, radius: 150, direction: 1},
+    {type: 'curve', length: 200, radius: 150, direction: -1},
+    {type: 'straight', length: 300}
+  ],
+  [
+    {type: 'curve', length: 150, radius: 100, direction: 1},
+    {type: 'straight', length: 500},
+    {type: 'curve', length: 150, radius: 100, direction: -1},
+    {type: 'straight', length: 300}
+  ],
+  [
+    {type: 'straight', length: 200},
+    {type: 'curve', length: 300, radius: 200, direction: -1},
+    {type: 'straight', length: 200},
+    {type: 'curve', length: 300, radius: 200, direction: 1}
+  ],
+  [
+    {type: 'straight', length: 600},
+    {type: 'curve', length: 180, radius: 120, direction: 1},
+    {type: 'curve', length: 180, radius: 120, direction: -1}
+  ]
+];
+
+let currentTrack = 0;
+
+// Stato auto
+let car = { x: 0, y: 0, angle: 0, speed: 0, trackDist: 0 };
+const keys = {};
+
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ') {
+    currentTrack = (currentTrack + 1) % tracks.length;
+    car = { x: 0, y: 0, angle: 0, speed: 0, trackDist: 0 };
+  }
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// Calcola posizione su pista
+function computeTrackPosition(dist) {
+  const track = tracks[currentTrack];
+  let acum = 0, x = 0, y = 0, angle = 0;
+
+  for (const seg of track) {
+    if (acum + seg.length >= dist) {
+      const delta = dist - acum;
+      if (seg.type === 'straight') {
+        x += Math.cos(angle) * delta;
+        y += Math.sin(angle) * delta;
+      } else { // curva
+        const dir = seg.direction;
+        const theta = delta / seg.radius;
+        const cx = x - Math.sin(angle) * seg.radius * dir;
+        const cy = y + Math.cos(angle) * seg.radius * dir;
+        angle += theta * dir;
+        x = cx + Math.sin(angle) * seg.radius * dir;
+        y = cy - Math.cos(angle) * seg.radius * dir;
+      }
+      return { x, y, angle };
+    } else {
+      const d = seg.length;
+      if (seg.type === 'straight') {
+        x += Math.cos(angle) * d;
+        y += Math.sin(angle) * d;
+      } else {
+        const dir = seg.direction;
+        const theta = d / seg.radius;
+        const cx = x - Math.sin(angle) * seg.radius * dir;
+        const cy = y + Math.cos(angle) * seg.radius * dir;
+        angle += theta * dir;
+        x = cx + Math.sin(angle) * seg.radius * dir;
+        y = cy - Math.cos(angle) * seg.radius * dir;
+      }
+      acum += seg.length;
+    }
+  }
+  return computeTrackPosition(dist % acum);
+}
+
+// Aggiornamento
+function update() {
+  if (keys['ArrowUp']) car.speed += 0.2;
+  if (keys['ArrowDown']) car.speed -= 0.2;
+  car.speed *= 0.98;
+  car.trackDist += car.speed;
+
+  const p = computeTrackPosition(car.trackDist);
+  car.x = p.x; car.y = p.y; car.angle = p.angle;
+}
+
+// Disegno
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(-car.angle);
+  ctx.translate(-car.x, -car.y);
+
+  // Disegna pista
+  const track = tracks[currentTrack];
+  let pos = 0, prev = computeTrackPosition(0);
+  const total = track.reduce((s, s2) => s + s2.length, 0);
+  for (let d = 0; d <= total; d += 5) {
+    const pt = computeTrackPosition(d);
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 20;
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+    prev = pt;
+  }
+
+  // Disegna auto
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle);
+  ctx.fillStyle = 'red';
+  ctx.fillRect(-15, -10, 30, 20);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
