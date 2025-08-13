@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Top-Down Racing con Circuiti</title>
+<style>
+  body { margin:0; overflow:hidden; background:#222; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Definizione dei circuiti come array di segmenti {type: 'straight'|'curve', length, radius?, direction?}
+const tracks = [
+  // Circuito 1
+  [
+    {type:'straight', length:300},
+    {type:'curve', length:100, radius:80, direction:1},
+    {type:'straight', length:300},
+    {type:'curve', length:100, radius:80, direction:-1}
+  ],
+  // Circuito 2
+  [
+    {type:'straight', length:200},
+    {type:'curve', length:150, radius:100, direction:1},
+    {type:'curve', length:150, radius:100, direction:-1},
+    {type:'straight', length:200}
+  ],
+  // Circuito 3
+  [
+    {type:'curve', length:120, radius:60, direction:1},
+    {type:'straight', length:400},
+    {type:'curve', length:120, radius:60, direction:-1},
+    {type:'straight', length:200}
+  ],
+  // Circuito 4
+  [
+    {type:'straight', length:250},
+    {type:'curve', length:200, radius:120, direction:-1},
+    {type:'straight', length:250},
+    {type:'curve', length:200, radius:120, direction:1}
+  ],
+  // Circuito 5
+  [
+    {type:'straight', length:500},
+    {type:'curve', length:180, radius:100, direction:1},
+    {type:'curve', length:180, radius:100, direction:-1}
+  ]
+];
+
+let currentTrack = 0;
+
+// Genera punti del circuito (per disegno e collisioni)
+function generateTrackPoints(track) {
+  let points = [];
+  let x=0, y=0, angle=0;
+  for(const seg of track){
+    if(seg.type==='straight'){
+      for(let i=0;i<seg.length;i+=5){
+        x += Math.cos(angle)*5;
+        y += Math.sin(angle)*5;
+        points.push({x,y});
+      }
+    } else {
+      const dir = seg.direction;
+      const steps = Math.floor(seg.length/5);
+      for(let i=0;i<steps;i++){
+        const theta = 5/seg.radius;
+        const cx = x - Math.sin(angle)*seg.radius*dir;
+        const cy = y + Math.cos(angle)*seg.radius*dir;
+        angle += theta*dir;
+        x = cx + Math.sin(angle)*seg.radius*dir;
+        y = cy - Math.cos(angle)*seg.radius*dir;
+        points.push({x,y});
+      }
+    }
+  }
+  return points;
+}
+
+let trackPoints = generateTrackPoints(tracks[currentTrack]);
+
+// Auto
+let car = {x:trackPoints[0].x, y:trackPoints[0].y, angle:0, speed:0};
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key]=true;
+  if(e.key===' ') {
+    currentTrack = (currentTrack+1)%tracks.length;
+    trackPoints = generateTrackPoints(tracks[currentTrack]);
+    car = {x:trackPoints[0].x, y:trackPoints[0].y, angle:0, speed:0};
+  }
+});
+window.addEventListener('keyup', e=>keys[e.key]=false);
+
+// Collisione semplice: non lasciare uscire dal bordo
+function checkCollision(x,y){
+  let minDist = Infinity;
+  for(const p of trackPoints){
+    const dx = x-p.x;
+    const dy = y-p.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist<minDist) minDist=dist;
+  }
+  return minDist<20; // larghezza pista 40px
+}
+
+// Update
+function update(){
+  if(keys['ArrowUp']) car.speed += 0.2;
+  if(keys['ArrowDown']) car.speed -= 0.2;
+  if(keys['ArrowLeft']) car.angle -= 0.04*car.speed/2;
+  if(keys['ArrowRight']) car.angle += 0.04*car.speed/2;
+  car.speed *=0.95;
+
+  const nx = car.x + Math.cos(car.angle)*car.speed;
+  const ny = car.y + Math.sin(car.angle)*car.speed;
+  if(checkCollision(nx,ny)){
+    car.x = nx;
+    car.y = ny;
+  } else {
+    car.speed=0; // se esci dalla pista fermati
+  }
+}
+
+// Draw
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
+  // Telecamera centrata sull'auto
+  ctx.translate(canvas.width/2 - car.x, canvas.height/2 - car.y);
+
+  // Pista
+  ctx.strokeStyle='#555';
+  ctx.lineWidth=40;
+  ctx.beginPath();
+  for(let i=0;i<trackPoints.length;i++){
+    const p=trackPoints[i];
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  }
+  ctx.stroke();
+
+  // Auto
+  ctx.save();
+  ctx.translate(car.x,car.y);
+  ctx.rotate(car.angle);
+  ctx.fillStyle='red';
+  ctx.fillRect(-15,-10,30,20);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
